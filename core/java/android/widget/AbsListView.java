@@ -496,9 +496,14 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
     int mOverscrollMax;
 
     /**
+     * Preferred overscroll effect
+     */
+    int mOverscrollEffect;
+
+    /**
      * Content height divided by this is the overscroll limit.
      */
-    static final int OVERSCROLL_LIMIT_DIVISOR = 3;
+    static final int OVERSCROLL_LIMIT_DIVISOR = 5;
 
     /**
      * How many positions in either direction we will search to try to
@@ -691,6 +696,12 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
      * it.
      */
     private SavedState mPendingSync;
+
+
+    /**
+     * Used to store the overscroll mode in this view
+     */
+    private int mOverScrollMode = 0;
 
     /**
      * Interface definition for a callback to be invoked when the list or grid
@@ -2084,10 +2095,20 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
             mRecycler.markChildrenDirty();
         }
 
+        mOverScrollMode = getOverScrollMode();
         layoutChildren();
         mInLayout = false;
 
-        mOverscrollMax = (b - t) / OVERSCROLL_LIMIT_DIVISOR;
+        mOverscrollMax = (b - t) / getOverscrollWeight();
+        mOverscrollEffect = Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.OVERSCROLL_EFFECT, OVER_SCROLL_SETTING_EDGEGLOW);
+
+        if (mOverscrollEffect >= OVER_SCROLL_SETTING_BOUNCEGLOW) {
+            mOverscrollDistance = getOverscrollMax();
+            mOverflingDistance = getOverscrollMax();
+        }
+        mHeight = getHeight();
+        mWidth = getWidth();
 
         // TODO: Move somewhere sane. This doesn't belong in onLayout().
         if (mFastScroller != null) {
@@ -2211,6 +2232,22 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
      */
     public int getListPaddingRight() {
         return mListPadding.right;
+    }
+
+    /**
+     * Returns the overscroll weight for this view
+     *
+     * @return This view's overscroll weight.
+     */
+    private int getOverscrollWeight() {
+        final int weight = Settings.System.getInt(mContext.getContentResolver(),
+            Settings.System.OVERSCROLL_WEIGHT, 0);
+
+        if (weight == 0) {
+            return OVERSCROLL_LIMIT_DIVISOR;
+        } else {
+            return weight;
+        }
     }
 
     /**
@@ -3162,7 +3199,7 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
         // scroll than a tap
         final int deltaY = y - mMotionY;
         final int distance = Math.abs(deltaY);
-        final boolean overscroll = mScrollY != 0;
+        final boolean overscroll = mScrollY != 0 && (mOverScrollMode != OVER_SCROLL_NEVER);
         if (overscroll || distance > mTouchSlop) {
             createScrollingCache();
             if (overscroll) {
@@ -3249,7 +3286,7 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
                     // Check if the top of the motion view is where it is
                     // supposed to be
                     final int motionViewRealTop = motionView.getTop();
-                    if (atEdge) {
+                    if (atEdge && mOverScrollMode != OVER_SCROLL_NEVER) {
                         // Apply overscroll
 
                         int overscroll = -incrementalDeltaY -
@@ -3264,21 +3301,22 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
                         }
 
                         final int overscrollMode = getOverScrollMode();
-                        if (overscrollMode == OVER_SCROLL_ALWAYS ||
-                                (overscrollMode == OVER_SCROLL_IF_CONTENT_SCROLLS &&
+                        if (mOverScrollMode == OVER_SCROLL_ALWAYS ||
+                                    (mOverScrollMode == OVER_SCROLL_IF_CONTENT_SCROLLS &&
                                         !contentFits())) {
                             mDirection = 0; // Reset when entering overscroll.
                             mTouchMode = TOUCH_MODE_OVERSCROLL;
-                            if (rawDeltaY > 0) {
-                                mEdgeGlowTop.onPull((float) overscroll / getHeight());
-                                if (!mEdgeGlowBottom.isFinished()) {
-                                    mEdgeGlowBottom.onRelease();
-                                }
-                                invalidate(mEdgeGlowTop.getBounds(false));
-                            } else if (rawDeltaY < 0) {
-                                mEdgeGlowBottom.onPull((float) overscroll / getHeight());
-                                if (!mEdgeGlowTop.isFinished()) {
-                                    mEdgeGlowTop.onRelease();
+                            if (mOverscrollEffect < OVER_SCROLL_SETTING_BOUNCE) {
+                                    if (rawDeltaY > 0) {
+                                        mEdgeGlowTop.onPull((float) overscroll / getHeight());
+                                        if (!mEdgeGlowBottom.isFinished()) {
+                                            mEdgeGlowBottom.onRelease();
+                                        }
+                                    } else if (rawDeltaY < 0) {
+                                        mEdgeGlowBottom.onPull((float) overscroll / getHeight());
+                                        if (!mEdgeGlowTop.isFinished()) {
+                                            mEdgeGlowTop.onRelease();
+                                    }
                                 }
                                 invalidate(mEdgeGlowBottom.getBounds(true));
                             }
@@ -3309,20 +3347,20 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
                 if (overScrollDistance != 0) {
                     overScrollBy(0, overScrollDistance, 0, mScrollY, 0, 0,
                             0, mOverscrollDistance, true);
-                    final int overscrollMode = getOverScrollMode();
-                    if (overscrollMode == OVER_SCROLL_ALWAYS ||
-                            (overscrollMode == OVER_SCROLL_IF_CONTENT_SCROLLS &&
+                    if (mOverScrollMode == OVER_SCROLL_ALWAYS ||
+                                (mOverScrollMode == OVER_SCROLL_IF_CONTENT_SCROLLS &&
                                     !contentFits())) {
-                        if (rawDeltaY > 0) {
-                            mEdgeGlowTop.onPull((float) overScrollDistance / getHeight());
-                            if (!mEdgeGlowBottom.isFinished()) {
-                                mEdgeGlowBottom.onRelease();
-                            }
-                            invalidate(mEdgeGlowTop.getBounds(false));
-                        } else if (rawDeltaY < 0) {
-                            mEdgeGlowBottom.onPull((float) overScrollDistance / getHeight());
-                            if (!mEdgeGlowTop.isFinished()) {
-                                mEdgeGlowTop.onRelease();
+                        if (mOverscrollEffect < OVER_SCROLL_SETTING_BOUNCE) {
+                                if (rawDeltaY > 0) {
+                                    mEdgeGlowTop.onPull((float) -incrementalDeltaY / getHeight());
+                                    if (!mEdgeGlowBottom.isFinished()) {
+                                        mEdgeGlowBottom.onRelease();
+                                    }
+                                } else if (rawDeltaY < 0) {
+                                    mEdgeGlowBottom.onPull((float) -incrementalDeltaY / getHeight());
+                                    if (!mEdgeGlowTop.isFinished()) {
+                                        mEdgeGlowTop.onRelease();
+                                }
                             }
                             invalidate(mEdgeGlowBottom.getBounds(true));
                         }
@@ -3731,7 +3769,9 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
 
         setPressed(false);
 
-        if (mEdgeGlowTop != null) {
+        if (mOverScrollMode != OVER_SCROLL_NEVER &&
+                mOverscrollEffect < OVER_SCROLL_SETTING_BOUNCE &&
+                mEdgeGlowTop != null) {
             mEdgeGlowTop.onRelease();
             mEdgeGlowBottom.onRelease();
         }
@@ -3781,7 +3821,9 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
             recycleVelocityTracker();
         }
 
-        if (mEdgeGlowTop != null) {
+        if (mOverScrollMode != OVER_SCROLL_NEVER &&
+                mOverscrollEffect < OVER_SCROLL_SETTING_BOUNCE &&
+                mEdgeGlowTop != null) {
             mEdgeGlowTop.onRelease();
             mEdgeGlowBottom.onRelease();
         }
@@ -3819,10 +3861,22 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
         return super.onGenericMotionEvent(event);
     }
 
+    private int getOverscrollMax() {
+        final int childCount = getChildCount();
+        if (childCount > 0) {
+            return Math.min(mOverscrollMax,
+                    getChildAt(childCount - 1).getBottom() / getOverscrollWeight());
+        } else {
+            return mOverscrollMax;
+        }
+    }
+
     @Override
     public void draw(Canvas canvas) {
         super.draw(canvas);
-        if (mEdgeGlowTop != null) {
+        if (mOverScrollMode != OVER_SCROLL_NEVER &&
+                mOverscrollEffect < OVER_SCROLL_SETTING_BOUNCE &&
+                mEdgeGlowTop != null) {
             final int scrollY = mScrollY;
             if (!mEdgeGlowTop.isFinished()) {
                 final int restoreCount = canvas.save();
@@ -4143,10 +4197,11 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
 
         void edgeReached(int delta) {
             mScroller.notifyVerticalEdgeReached(mScrollY, 0, mOverflingDistance);
-            final int overscrollMode = getOverScrollMode();
-            if (overscrollMode == OVER_SCROLL_ALWAYS ||
-                    (overscrollMode == OVER_SCROLL_IF_CONTENT_SCROLLS && !contentFits())) {
-                mTouchMode = TOUCH_MODE_OVERFLING;
+            mTouchMode = TOUCH_MODE_OVERFLING;
+            if (mOverScrollMode == OVER_SCROLL_ALWAYS ||
+                    (mOverScrollMode == OVER_SCROLL_IF_CONTENT_SCROLLS && 
+                     !contentFits() && 
+                     mOverscrollEffect < OVER_SCROLL_SETTING_BOUNCE)) {
                 final int vel = (int) mScroller.getCurrVelocity();
                 if (delta > 0) {
                     mEdgeGlowTop.onAbsorb(vel);
@@ -6171,9 +6226,12 @@ public abstract class AbsListView extends AdapterView<ListAdapter> implements Te
     }
 
     private void finishGlows() {
-        if (mEdgeGlowTop != null) {
-            mEdgeGlowTop.finish();
-            mEdgeGlowBottom.finish();
+        if (mOverScrollMode != OVER_SCROLL_NEVER &&
+            mOverscrollEffect < OVER_SCROLL_SETTING_BOUNCE) {
+            if (mEdgeGlowTop != null) {
+                mEdgeGlowTop.finish();
+                mEdgeGlowBottom.finish();
+            }
         }
     }
 

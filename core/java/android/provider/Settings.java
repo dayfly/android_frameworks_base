@@ -3377,7 +3377,26 @@ public final class Settings {
          * Expanded desktop style (with status bar or without status bar)
          * @hide
          */
-        public static final String EXPANDED_DESKTOP_STYLE = "expanded_desktop_style";
+
+	/**
+	*
+	* OverScroll Glow Color
+	* @hide
+	*/
+	public static final String OVERSCROLL_GLOW_COLOR = "overscroll_glow_color";
+
+	/**
+	*
+	* OverScroll effects configuration
+	* @hide
+	*/
+	public static final String OVERSCROLL_EFFECT = "overscroll_effect";
+
+	/**
+	* Sets the overscroller weight (edge bounce effect on lists)
+	* @hide
+	*/
+	public static final String OVERSCROLL_WEIGHT = "overscroll_weight";
 
         /**
          * Expanded desktop system bars visibility in locked state
