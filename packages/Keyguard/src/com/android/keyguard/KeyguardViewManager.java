@@ -120,11 +120,6 @@ public class KeyguardViewManager {
         };
     };
 
-    private Bitmap mBlurredImage = null;
-    private int mLastRotation = 0;
-
-    private int mBlurRadius = 14;
-
     private KeyguardUpdateMonitorCallback mUpdateMonitorCallback = new KeyguardUpdateMonitorCallback() {
         @Override
         public void onSetBackground(Bitmap bmp) {
@@ -283,43 +278,7 @@ public class KeyguardViewManager {
 
     private boolean shouldEnableTranslucentDecor() {
         Resources res = mContext.getResources();
-<<<<<<< HEAD
         return res.getBoolean(R.bool.config_enableLockScreenTranslucentDecor);
-=======
-        return res.getBoolean(R.bool.config_enableLockScreenTranslucentDecor)
-            && res.getBoolean(R.bool.config_enableTranslucentDecor);
-    }
-
-    public void setBackgroundBitmap(Bitmap bmp) {
-        if (bmp != null) {
-            if (mBlurRadius > 0) {
-                mBlurredImage = blurBitmap(bmp, mBlurRadius);
-            } else {
-                mBlurredImage = bmp;
-            }
-        } else {
-            mBlurredImage = null;
-        }
-    }
-
-    private Bitmap blurBitmap(Bitmap bmp, int radius) {
-        Bitmap out = Bitmap.createBitmap(bmp);
-        RenderScript rs = RenderScript.create(mContext);
-
-        Allocation input = Allocation.createFromBitmap(
-                rs, bmp, MipmapControl.MIPMAP_NONE, Allocation.USAGE_SCRIPT);
-        Allocation output = Allocation.createTyped(rs, input.getType());
-
-        ScriptIntrinsicBlur script = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs));
-        script.setInput(input);
-        script.setRadius(radius);
-        script.forEach(output);
-
-        output.copyTo(out);
-
-        rs.destroy();
-        return out;
->>>>>>> faff0b5... Lockscreen Blur: Allow setting blur radius (1/2)
     }
 
     class ViewManagerHost extends FrameLayout {
